@@ -1,0 +1,188 @@
+---
+title: "Análisis de Datos"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+
+library(psych)
+library(readxl)
+library(tidyverse)
+library(magrittr)
+library(dplyr)
+library(ltm)
+library(likert)
+library(corrr)
+library(corrplot)
+library(knitr)
+
+```
+
+## Carga y depuración de los datos
+
+Carga de los datos y su correspondiente depuracion.
+
+```{r}
+
+dataset <- read_excel("../Data/dataset-v3.0.xls")
+dataset <- tbl_df(dataset)
+
+dataset <- subset(dataset, !is.na(P3))
+dataset <- subset(dataset, !is.na(P11))
+dataset <- subset(dataset, !is.na(P14))
+
+dataset <- subset(dataset, P9 != 'De acuerdo;Indiferente')
+dataset <- subset(dataset, P9 != 'Indiferente;En desacuerdo')
+
+niveles <- c('Totalmente de acuerdo', 'De acuerdo', 'Indiferente', 'En desacuerdo', 'Totalmente en desacuerdo')
+
+dataset <-  dataset %>% 
+  mutate(
+    P1 = parse_factor(P1, levels = niveles),
+    P2 = parse_factor(P2, levels = niveles),
+    P3 = parse_factor(P3, levels = niveles),
+    P4 = parse_factor(P4, levels = niveles),
+    P5 = parse_factor(P5, levels = niveles),
+    P6 = parse_factor(P6, levels = niveles),
+    P7 = parse_factor(P7, levels = niveles),
+    P8 = parse_factor(P8, levels = niveles),
+    P9 = parse_factor(P9, levels = niveles),
+    P10 = parse_factor(P10, levels = niveles),
+    P11 = parse_factor(P11, levels = niveles),
+    P13 = parse_factor(P13, levels = niveles),
+    P14 = parse_factor(P14, levels = c('Muy frecuentemente', 'Frecuentemente', 'Ocasionalmente', 'Raramente'), ordered = T),
+    P15 = parse_factor(P15, levels = niveles)
+  )
+
+summary(dataset)
+```
+
+## Análisis del Alfa de Cronbach
+
+A continuación, el análisis de cronback, con un 95% de confianza (CI=TRUE).
+
+```{r}
+bloque <- 1:13
+
+data <- dataset[, bloque]
+data <- lapply(data, as.numeric)
+
+set.seed(123)
+
+data <- as.data.frame(data)
+datos_reducidos <- data %>% sample_frac(.1)
+datos_reducidos <- replace(datos_reducidos, is.na(datos_reducidos), 0)
+
+#calculate Cronbach's Alpha
+cronbach.alpha(datos_reducidos, CI=TRUE)
+
+```
+
+Se tomó el 10% de los datos de manera aleatoria, y con ese porcentaje se calcula el alfa de Cronbach; el cual, sale 0.901 lo que me proporciona una excelente medida de consistencia interna con respecto a la encuesta.
+
+Cabe mencionar que solo se consideraron las preguntas que tienen escala de Likert, que es la mayoría con la excepción de dos preguntas: una tiene respuesta libre y otra tiene otra escala de valores ordinal.
+
+## Análisis Descriptivo
+
+You can include R code in the document as follows:
+
+```{r}
+diccionario <- read_excel("../Data/diccionario.xlsx")
+diccionario <- tbl_df(diccionario)
+
+df_likert <- as.data.frame(dataset)
+glimpse(df_likert)
+
+colnames( df_likert ) <- diccionario$descripcion
+
+bloqueVI <- 1:6
+bloqueVD <- 7:13
+
+itemsVI <- likert( items = df_likert[ , bloqueVI ] )
+itemsVD <- likert( items = df_likert[ , bloqueVD ] )
+```
+
+Análisis descriptivo de las variables independientes de la encuesta.
+
+```{r}
+plot( itemsVI, centered = TRUE, group.order = colnames( itemsVI$items ),
+      legend.position = "right" ) +
+  theme( axis.text.x = element_text( size = 10 ),
+         axis.text.y = element_text( size = 13, hjust = 0 ),
+         legend.text = element_text( size = 10 ),
+         legend.title = element_text( size = 10 ) ) 
+```
+
+```{r}
+plot( itemsVI, type = "heat", group.order = colnames( itemsVI$items ) ) +
+  theme( axis.text.x = element_text( size = 8 ),
+         axis.text.y = element_text( size = 13, hjust = 0 ),
+         legend.text = element_text( size = 10 ),
+         legend.title = element_text( size = 10 ) )
+```
+
+
+Análisis descriptivo de las variables dependientes de la encuesta.
+
+```{r}
+plot( itemsVD, centered = TRUE, group.order = colnames( itemsVD$items ),
+      legend.position = "right" ) +
+  theme( axis.text.x = element_text( size = 10 ),
+         axis.text.y = element_text( size = 13, hjust = 0 ),
+         legend.text = element_text( size = 10 ),
+         legend.title = element_text( size = 10 ) ) 
+```
+
+```{r}
+plot( itemsVD, type = "heat", group.order = colnames( itemsVD$items ) ) +
+  theme( axis.text.x = element_text( size = 8 ),
+         axis.text.y = element_text( size = 13, hjust = 0 ),
+         legend.text = element_text( size = 10 ),
+         legend.title = element_text( size = 10 ) )
+```
+
+
+## Análisis de Correlación
+
+Se correlacionan las variables que tienen la escala de Likert.
+
+```{r}
+
+glimpse(dataset[ , 1:13 ])
+
+dfCor <- dataset[ , 1:13 ]
+dfCor <- lapply(dfCor, as.numeric)
+dfCor <- as.data.frame( dfCor )
+corr <- cor( dfCor )
+
+kable( corr,
+       caption = "Tabla de correlaciones" )
+```
+
+
+```{r}
+
+corr2 <- correlate( dfCor )
+kable( fashion( corr2 ),
+       caption = "Tabla de correlaciones" )
+
+```
+
+
+
+```{r}
+network_plot( corr2, min_cor = 0.4 )
+```
+
+
+
+```{r}
+
+corrplot.mixed( corr, tl.pos = "lt", diag = 'n', upper = "ellipse",
+                number.cex = 0.4, tl.cex = 0.8,
+                order = "hclust" )
+
+```
+
+
+
